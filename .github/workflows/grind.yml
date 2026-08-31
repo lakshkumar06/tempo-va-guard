@@ -1,0 +1,24 @@
+name: Grind Tempo Master Salt
+
+on:
+  workflow_dispatch:
+    inputs:
+      address:
+        description: "Your wallet address (0x...)"
+        required: true
+        type: string
+
+jobs:
+  grind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build (release)
+        run: cargo build --release
+
+      - name: Run grinder
+        run: ./target/release/tempo-grinder "${{ inputs.address }}"
