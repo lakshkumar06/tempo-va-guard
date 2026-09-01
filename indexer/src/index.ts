@@ -11,3 +11,4 @@ export type {
   MasterId,
   UserTag,
 } from "./types/brands.js";
+export * from "./chain/index.js";
