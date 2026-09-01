@@ -1,1 +1,13 @@
-export const INDEXER_VERSION = "0.1.0";
+export { INDEXER_VERSION } from "./version.js";
+export {
+  decodeVirtualAddress,
+  encodeVirtualAddress,
+  isVirtualAddress,
+  VIRTUAL_MAGIC,
+} from "./codec/virtualAddress.js";
+export type {
+  BrandedAddress,
+  DecodedVirtualAddress,
+  MasterId,
+  UserTag,
+} from "./types/brands.js";
