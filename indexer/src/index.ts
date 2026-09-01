@@ -16,3 +16,8 @@ export * from "./pairer/index.js";
 export * from "./classifier/index.js";
 export * from "./db/index.js";
 export { BlockProcessor, createTempRepository } from "./ingest/processor.js";
+export {
+  ConfirmationGate,
+  ContinuityGuard,
+  resolveFinalizedBlock,
+} from "./ingest/confirmation.js";
