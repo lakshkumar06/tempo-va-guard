@@ -12,3 +12,4 @@ export type {
   UserTag,
 } from "./types/brands.js";
 export * from "./chain/index.js";
+export * from "./pairer/index.js";
