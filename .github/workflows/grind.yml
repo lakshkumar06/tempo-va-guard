@@ -18,7 +18,9 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
 
       - name: Build (release)
+        working-directory: pow
         run: cargo build --release
 
       - name: Run grinder
+        working-directory: pow
         run: ./target/release/tempo-grinder "${{ inputs.address }}"
