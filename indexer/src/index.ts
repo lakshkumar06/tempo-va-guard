@@ -21,3 +21,11 @@ export {
   ContinuityGuard,
   resolveFinalizedBlock,
 } from "./ingest/confirmation.js";
+export { createApiServer } from "./api/server.js";
+export { OutboxDispatcher } from "./webhook/dispatcher.js";
+export { OutboxRepository } from "./webhook/outbox.js";
+export { FakeClock, SystemClock } from "./webhook/clock.js";
+export {
+  FetchWebhookTransport,
+  RecordingWebhookTransport,
+} from "./webhook/transport.js";

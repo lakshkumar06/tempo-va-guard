@@ -11,13 +11,17 @@
     "lint": "eslint src tests"
   },
   "dependencies": {
+    "express": "^4.21.2",
     "viem": "^2.30.0",
     "zod": "^3.24.2"
   },
   "devDependencies": {
+    "@types/express": "^5.0.1",
     "@types/node": "^22.14.0",
+    "@types/supertest": "^6.0.3",
     "eslint": "^9.24.0",
     "fast-check": "^4.1.1",
+    "supertest": "^7.1.0",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.29.1",
     "vitest": "^3.1.1"
