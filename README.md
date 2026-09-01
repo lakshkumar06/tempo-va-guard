@@ -6,9 +6,18 @@ Proof-of-work registration and testnet experiments for Tempo virtual addresses.
 
 ```
 tempo-va-guard/
+├── indexer/          # Tempo VA indexer service (TypeScript)
 ├── pow/              # proof-of-work registration tooling
 ├── scripts/          # testnet experiments / hands-on tests
 └── sample-token/     # non-TIP20 test contract
+```
+
+## Indexer
+
+See [indexer/README.md](indexer/README.md) for the virtual-address deposit indexer.
+
+```bash
+cd indexer && npm install && npm test
 ```
 
 ## Run the grinder in the cloud (recommended)
