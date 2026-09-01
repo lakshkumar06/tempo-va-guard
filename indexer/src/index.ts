@@ -13,3 +13,4 @@ export type {
 } from "./types/brands.js";
 export * from "./chain/index.js";
 export * from "./pairer/index.js";
+export * from "./classifier/index.js";
