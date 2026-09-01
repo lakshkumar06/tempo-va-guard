@@ -1,8 +1,9 @@
+require("dotenv").config({ path: require("path").join(__dirname, "../sample-token/.env") });
 const { ethers } = require("ethers");
 
 const RPC_URL = "https://rpc.moderato.tempo.xyz";
 const REGISTRY_ADDRESS = "0xFDC0000000000000000000000000000000000000";
-const PRIVATE_KEY = "0x54b9432595087fd5def46ac24e23d97e27ab75230a8b17b0a038fbaedae7762b"; // same wallet as before
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
 const SALT = "0x8d8cec2f6b29ec2dd4d6a93e0ce88f3579b089d6f11f122f599df59c4424b925";
 
@@ -12,6 +13,10 @@ const REGISTRY_ABI = [
 ];
 
 async function main() {
+  if (!PRIVATE_KEY) {
+    throw new Error("PRIVATE_KEY not set — copy pow/.env.example to sample-token/.env");
+  }
+
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
   const registry = new ethers.Contract(REGISTRY_ADDRESS, REGISTRY_ABI, wallet);

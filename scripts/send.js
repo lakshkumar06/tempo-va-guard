@@ -1,8 +1,9 @@
+require("dotenv").config({ path: require("path").join(__dirname, "../sample-token/.env") });
 const { ethers } = require("ethers");
 
 const RPC_URL = "https://rpc.moderato.tempo.xyz";
 const PATHUSD = "0x20c0000000000000000000000000000000000000";
-const PRIVATE_KEY = "0x54b9432595087fd5def46ac24e23d97e27ab75230a8b17b0a038fbaedae7762b";
+const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const RECIPIENT = "0xD79c4cF03a2244F599200073ac704392dd6a84a0";
 
 const provider = new ethers.JsonRpcProvider(RPC_URL);
@@ -14,6 +15,10 @@ const ABI = [
 ];
 
 async function main() {
+  if (!PRIVATE_KEY) {
+    throw new Error("PRIVATE_KEY not set — copy pow/.env.example to sample-token/.env");
+  }
+
   const token = new ethers.Contract(PATHUSD, ABI, wallet);
   const decimals = await token.decimals();
   const amount = ethers.parseUnits("10", decimals); // send 10 pathUSD
