@@ -58,12 +58,21 @@ export type BlockCommitInput = {
   anomalies: ClassifiedAnomaly[];
 };
 
+export type BlockHashRecord = {
+  number: bigint;
+  hash: Hash;
+  parentHash: Hash;
+};
+
 export interface DepositRepository {
   getCursor(): CursorState | null;
   commitBlock(input: BlockCommitInput): void;
   listDeposits(): StoredDeposit[];
   countDeposits(): number;
   pruneBlockHashes(keepLatest: number): void;
+  getBlockHash(number: bigint): BlockHashRecord | null;
+  confirmDepositsUpTo(blockNumber: bigint): number;
+  orphanDetectedFromBlock(fromBlock: bigint): number;
 }
 
 export function depositId(
@@ -259,5 +268,55 @@ export class SqliteDepositRepository implements DepositRepository {
       )
     `,
     ).run(keepLatest);
+  }
+
+  getBlockHash(number: bigint): BlockHashRecord | null {
+    const row = this.db
+      .prepare(
+        "SELECT number, hash, parent_hash FROM block_hashes WHERE number = ?",
+      )
+      .get(Number(number)) as
+      | { number: number; hash: string; parent_hash: string }
+      | undefined;
+
+    if (!row) {
+      return null;
+    }
+
+    return {
+      number: BigInt(row.number),
+      hash: row.hash as Hash,
+      parentHash: row.parent_hash as Hash,
+    };
+  }
+
+  confirmDepositsUpTo(blockNumber: bigint): number {
+    const now = new Date().toISOString();
+    const result = this.db.prepare(
+      `
+      UPDATE deposits
+      SET status = 'confirmed', confirmed_at = ?
+      WHERE status = 'detected' AND block_number <= ?
+    `,
+    ).run(now, Number(blockNumber));
+    return Number(result.changes);
+  }
+
+  orphanDetectedFromBlock(fromBlock: bigint): number {
+    this.db.exec("BEGIN");
+    try {
+      const result = this.db.prepare(
+        `
+        UPDATE deposits
+        SET status = 'orphaned'
+        WHERE status = 'detected' AND block_number >= ?
+      `,
+      ).run(Number(fromBlock));
+      this.db.exec("COMMIT");
+      return Number(result.changes);
+    } catch (error) {
+      this.db.exec("ROLLBACK");
+      throw error;
+    }
   }
 }
