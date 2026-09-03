@@ -21,7 +21,11 @@ export type ClassifiedDeposit = {
 
 export type ClassifiedAnomaly = {
   kind: "anomaly";
-  anomalyKind: "stranded_non_tip20" | "unpaired_hop";
+  anomalyKind:
+    | "stranded_non_tip20"
+    | "unpaired_hop"
+    | "unregistered_master"
+    | "master_mismatch";
   detail: Record<string, unknown>;
   blockNumber?: bigint;
   txHash?: Hash;
@@ -94,20 +98,58 @@ export function isTip20Token(token: Address): boolean {
   return tip20Set.has(token.toLowerCase());
 }
 
+/**
+ * Accept a deposit only when:
+ * 1. masterId resolves in the registry (no hop-2 fallback), and
+ * 2. hop-2 recipient equals that registered master address.
+ */
 export function classifyDeposit(
   deposit: ParsedDeposit,
   registry: RegistryCache,
 ): Classification {
-  const masterAddress =
-    registry.getMaster(deposit.masterId) ?? deposit.master;
+  const registered = registry.getMaster(deposit.masterId);
+
+  if (!registered) {
+    return {
+      kind: "anomaly",
+      anomalyKind: "unregistered_master",
+      token: deposit.token,
+      virtualAddress: deposit.virtualAddress,
+      amount: deposit.amount,
+      txHash: deposit.txHash,
+      detail: {
+        masterId: deposit.masterId,
+        hop2Recipient: deposit.master,
+        message: "masterId is not present in the registry cache",
+      },
+    };
+  }
+
+  if (registered.toLowerCase() !== deposit.master.toLowerCase()) {
+    return {
+      kind: "anomaly",
+      anomalyKind: "master_mismatch",
+      token: deposit.token,
+      virtualAddress: deposit.virtualAddress,
+      amount: deposit.amount,
+      txHash: deposit.txHash,
+      detail: {
+        masterId: deposit.masterId,
+        registeredMaster: registered,
+        hop2Recipient: deposit.master,
+        message: "hop-2 recipient does not equal registered master",
+      },
+    };
+  }
+
   const isSelfForward =
-    deposit.depositor.toLowerCase() === masterAddress.toLowerCase();
+    deposit.depositor.toLowerCase() === registered.toLowerCase();
 
   return {
     kind: "deposit",
     deposit,
     isSelfForward,
-    masterAddress,
+    masterAddress: registered,
   };
 }
 

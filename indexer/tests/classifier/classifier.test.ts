@@ -76,4 +76,32 @@ describe("classifier", () => {
 
     expect(results).toHaveLength(0);
   });
+
+  it("rejects deposits when masterId is missing from the registry", () => {
+    const logs = buildTransferFixtureLogs();
+    const paired = pairDepositsFromLogs(logs, "0xabc" as Hash);
+    const registry = new RegistryCache();
+
+    const result = classifyDeposit(paired.deposits[0]!, registry);
+    expect(result).toMatchObject({
+      kind: "anomaly",
+      anomalyKind: "unregistered_master",
+    });
+  });
+
+  it("rejects deposits when hop-2 recipient mismatches registry", () => {
+    const logs = buildTransferFixtureLogs();
+    const paired = pairDepositsFromLogs(logs, "0xabc" as Hash);
+    const registry = new RegistryCache();
+    registry.register(
+      "0xb1977b69",
+      "0x9999999999999999999999999999999999999999",
+    );
+
+    const result = classifyDeposit(paired.deposits[0]!, registry);
+    expect(result).toMatchObject({
+      kind: "anomaly",
+      anomalyKind: "master_mismatch",
+    });
+  });
 });
