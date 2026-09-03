@@ -1,6 +1,9 @@
 import type { StoredDeposit } from "../db/repository.js";
 
-export type WebhookEventType = "deposit.confirmed" | "anomaly.detected";
+export type WebhookEventType =
+  | "deposit.confirmed"
+  | "deposit.orphaned"
+  | "anomaly.detected";
 
 export type WebhookPayload = {
   event: WebhookEventType;
@@ -39,6 +42,28 @@ export function buildDepositPayload(deposit: StoredDeposit): WebhookPayload {
       token: deposit.token,
       virtualAddress: deposit.virtualAddress,
       isSelfForward: deposit.isSelfForward,
+    },
+  };
+}
+
+/** Compensating event so consumers can reverse credits after a discontinuity. */
+export function buildDepositOrphanedPayload(
+  deposit: StoredDeposit,
+): WebhookPayload {
+  return {
+    event: "deposit.orphaned",
+    id: deposit.id,
+    timestamp: new Date().toISOString(),
+    data: {
+      txHash: deposit.txHash,
+      blockNumber: deposit.blockNumber.toString(),
+      masterId: deposit.masterId,
+      userTag: deposit.userTag,
+      amount: deposit.amount,
+      token: deposit.token,
+      virtualAddress: deposit.virtualAddress,
+      previousStatus: deposit.status,
+      reason: "chain_discontinuity",
     },
   };
 }
