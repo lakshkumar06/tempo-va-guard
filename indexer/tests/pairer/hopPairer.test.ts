@@ -76,6 +76,38 @@ describe("hop pairer", () => {
     expect(result.unpairedHops[0]).toMatchObject({ hop: 1 });
   });
 
+  it("never creates deposits for non-allowlisted token two-hop spoofs", () => {
+    const fakeToken = "0xd51c28223D96a64F6401e4Ed4cB5dBdA9Ae747ff" as const;
+    const meta = {
+      blockNumber: 999n,
+      blockHash: "0xblock" as Hash,
+      transactionHash: "0xspoof" as Hash,
+    };
+    const logs = [
+      makeTransferLog({
+        token: fakeToken,
+        from: SENDER,
+        to: VIRTUAL,
+        amount: 1n,
+        logIndex: 0,
+        ...meta,
+      }),
+      makeTransferLog({
+        token: fakeToken,
+        from: VIRTUAL,
+        to: MASTER,
+        amount: 1n,
+        logIndex: 1,
+        ...meta,
+      }),
+    ];
+
+    const result = pairDepositsFromLogs(logs, meta.transactionHash);
+    expect(result.deposits).toHaveLength(0);
+    // Both hops remain unpaired because the token is not TIP-20.
+    expect(result.unpairedHops.length).toBeGreaterThanOrEqual(1);
+  });
+
   it("still pairs self-forward hops (classifier filters later)", () => {
     const logs = buildSelfForwardFixtureLogs();
     const result = pairDepositsFromLogs(logs, "0x333" as Hash);

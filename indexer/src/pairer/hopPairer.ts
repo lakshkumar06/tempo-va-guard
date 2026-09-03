@@ -1,7 +1,7 @@
 import { decodeEventLog, type Address, type Hash, type Hex } from "viem";
 import { isVirtualAddress, decodeVirtualAddress } from "../codec/virtualAddress.js";
 import type { MasterId, UserTag } from "../types/brands.js";
-import type { IndexedLog } from "../chain/types.js";
+import { TIP20_TOKENS, type IndexedLog } from "../chain/types.js";
 
 export const TRANSFER_EVENT_ABI = {
   type: "event",
@@ -227,14 +227,39 @@ function pairKey(token: Address, virtual: Address, amount: bigint): string {
   return `${token.toLowerCase()}:${virtual.toLowerCase()}:${amount}`;
 }
 
+export type PairDepositsOptions = {
+  /**
+   * Only emit deposits for these token contracts (default: canonical TIP-20 set).
+   * Non-allowlisted transfers to virtual addresses remain unpaired hops so the
+   * guard can flag stranded unsupported tokens.
+   */
+  tip20Allowlist?: readonly Address[];
+};
+
+function isAllowlistedToken(
+  token: Address,
+  allowlist: ReadonlySet<string>,
+): boolean {
+  return allowlist.has(token.toLowerCase());
+}
+
 /**
  * Pair hop-1 (→virtual) and hop-2 (virtual→master) Transfer events within one tx.
  * Tolerates interleaved TransferWithMemo and Mint logs per TIP-1022.
+ *
+ * Deposit records require an allowlisted TIP-20 token. Arbitrary ERC-20-shaped
+ * Transfer logs cannot produce deposits.
  */
 export function pairDepositsFromLogs(
   logs: readonly IndexedLog[],
   txHash: Hash,
+  options: PairDepositsOptions = {},
 ): PairDepositsResult {
+  const allowlist = new Set(
+    (options.tip20Allowlist ?? TIP20_TOKENS).map((token) =>
+      token.toLowerCase(),
+    ),
+  );
   const events = parseEvents(logs);
   const transfers = events.filter(
     (event): event is ParsedTransfer => event.kind === "transfer",
@@ -267,6 +292,11 @@ export function pairDepositsFromLogs(
   const deposits: ParsedDeposit[] = [];
 
   for (const hop2 of hop2Candidates) {
+    // Spoofed two-hop patterns on non-TIP-20 contracts must not become deposits.
+    if (!isAllowlistedToken(hop2.token, allowlist)) {
+      continue;
+    }
+
     const match = hop1Candidates.find(
       (hop1) =>
         !usedHop1.has(hop1.logIndex) &&
