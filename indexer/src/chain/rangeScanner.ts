@@ -11,6 +11,8 @@ export type RangeScannerOptions = {
   initialRangeSize?: bigint;
   minRangeSize?: bigint;
   maxRangeSize?: bigint;
+  maxRetries?: number;
+  receiptConcurrency?: number;
 };
 
 export type ScanMasterTransfersOptions = RangeScannerOptions & {
@@ -19,12 +21,68 @@ export type ScanMasterTransfersOptions = RangeScannerOptions & {
   onRange?: (range: LogRange, logCount: number) => void;
 };
 
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function retryDelayMs(attempt: number): number {
+  const base = Math.min(30_000, 250 * 2 ** attempt);
+  return Math.floor(Math.random() * base);
+}
+
+async function withRetry<T>(
+  fn: () => Promise<T>,
+  maxRetries: number,
+): Promise<T> {
+  let attempt = 0;
+  for (;;) {
+    try {
+      return await fn();
+    } catch (error) {
+      const retryable =
+        error instanceof ChainSourceError &&
+        (error.code === "RATE_LIMITED" || error.code === "RPC_ERROR");
+      if (!retryable || attempt >= maxRetries) {
+        throw error;
+      }
+      await sleep(retryDelayMs(attempt));
+      attempt += 1;
+    }
+  }
+}
+
+async function mapPool<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  const results: R[] = new Array(items.length);
+  let next = 0;
+
+  async function run(): Promise<void> {
+    while (next < items.length) {
+      const index = next;
+      next += 1;
+      results[index] = await worker(items[index]!);
+    }
+  }
+
+  const runners = Array.from(
+    { length: Math.min(concurrency, Math.max(items.length, 1)) },
+    () => run(),
+  );
+  await Promise.all(runners);
+  return results;
+}
+
 /**
  * Fetches master-crediting Transfer logs using adaptive range sizing.
- * Halves the range on TOO_MANY_RESULTS, grows slowly on success.
+ * Halves the range on TOO_MANY_RESULTS, retries transient RPC/rate-limit errors.
  */
 export class RangeScanner {
   private rangeSize: bigint;
+  private readonly maxRetries: number;
+  private readonly receiptConcurrency: number;
 
   constructor(
     private readonly source: ChainSource,
@@ -33,6 +91,8 @@ export class RangeScanner {
     this.rangeSize = options.initialRangeSize ?? 2_000n;
     this.minRangeSize = options.minRangeSize ?? 1n;
     this.maxRangeSize = options.maxRangeSize ?? 2_000n;
+    this.maxRetries = options.maxRetries ?? 5;
+    this.receiptConcurrency = options.receiptConcurrency ?? 4;
   }
 
   private readonly minRangeSize: bigint;
@@ -60,7 +120,10 @@ export class RangeScanner {
       };
 
       try {
-        const logs = await this.source.getMasterTransferLogs(query);
+        const logs = await withRetry(
+          () => this.source.getMasterTransferLogs(query),
+          this.maxRetries,
+        );
         allLogs.push(...logs);
         options.onRange?.({ fromBlock: cursor, toBlock: rangeEnd }, logs.length);
 
@@ -100,8 +163,20 @@ export class RangeScanner {
       Awaited<ReturnType<ChainSource["getTransactionReceipt"]>>
     >();
 
-    for (const hash of hashes) {
-      receipts.set(hash, await this.source.getTransactionReceipt(hash));
+    const fetched = await mapPool(
+      hashes,
+      this.receiptConcurrency,
+      async (hash) => {
+        const receipt = await withRetry(
+          () => this.source.getTransactionReceipt(hash),
+          this.maxRetries,
+        );
+        return [hash, receipt] as const;
+      },
+    );
+
+    for (const [hash, receipt] of fetched) {
+      receipts.set(hash, receipt);
     }
 
     return receipts;
