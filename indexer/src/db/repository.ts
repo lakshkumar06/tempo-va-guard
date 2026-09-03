@@ -73,6 +73,10 @@ export interface DepositRepository {
   getBlockHash(number: bigint): BlockHashRecord | null;
   confirmDepositsUpTo(blockNumber: bigint): number;
   orphanDetectedFromBlock(fromBlock: bigint): number;
+  orphanFromBlock(
+    fromBlock: bigint,
+    statuses: readonly DepositStatus[],
+  ): { orphaned: number; previouslyConfirmed: StoredDeposit[] };
 }
 
 export function depositId(
@@ -303,20 +307,76 @@ export class SqliteDepositRepository implements DepositRepository {
   }
 
   orphanDetectedFromBlock(fromBlock: bigint): number {
+    return this.orphanFromBlock(fromBlock, ["detected"]).orphaned;
+  }
+
+  orphanFromBlock(
+    fromBlock: bigint,
+    statuses: readonly DepositStatus[],
+  ): { orphaned: number; previouslyConfirmed: StoredDeposit[] } {
+    if (statuses.length === 0) {
+      return { orphaned: 0, previouslyConfirmed: [] };
+    }
+
     this.db.exec("BEGIN");
     try {
-      const result = this.db.prepare(
-        `
-        UPDATE deposits
-        SET status = 'orphaned'
-        WHERE status = 'detected' AND block_number >= ?
-      `,
-      ).run(Number(fromBlock));
+      const placeholders = statuses.map(() => "?").join(", ");
+      const previouslyConfirmed = this.db
+        .prepare(
+          `
+          SELECT * FROM deposits
+          WHERE status = 'confirmed' AND block_number >= ?
+        `,
+        )
+        .all(Number(fromBlock)) as Array<Record<string, unknown>>;
+
+      const confirmedRows = statuses.includes("confirmed")
+        ? previouslyConfirmed.map(mapStoredDepositRow)
+        : [];
+
+      const result = this.db
+        .prepare(
+          `
+          UPDATE deposits
+          SET status = 'orphaned'
+          WHERE block_number >= ? AND status IN (${placeholders})
+        `,
+        )
+        .run(Number(fromBlock), ...statuses);
+
       this.db.exec("COMMIT");
-      return Number(result.changes);
+      return {
+        orphaned: Number(result.changes),
+        previouslyConfirmed: confirmedRows,
+      };
     } catch (error) {
       this.db.exec("ROLLBACK");
       throw error;
     }
   }
+}
+
+function mapStoredDepositRow(row: Record<string, unknown>): StoredDeposit {
+  return {
+    id: String(row.id),
+    chainId: Number(row.chain_id),
+    blockNumber: BigInt(row.block_number as number),
+    blockHash: row.block_hash as Hash,
+    txHash: row.tx_hash as Hash,
+    hop1LogIndex: Number(row.hop1_log_index),
+    hop2LogIndex: Number(row.hop2_log_index),
+    token: row.token as Address,
+    masterId: String(row.master_id),
+    masterAddress: row.master_address as Address,
+    userTag: String(row.user_tag),
+    virtualAddress: row.virtual_address as Address,
+    fromAddress: row.from_address as Address,
+    amount: String(row.amount),
+    memo: row.memo ? String(row.memo) : undefined,
+    entrypoint: row.entrypoint as DepositEntrypoint,
+    isSelfForward: Boolean(row.is_self_forward),
+    status: row.status as DepositStatus,
+    detectedAt: String(row.detected_at),
+    confirmedAt: row.confirmed_at ? String(row.confirmed_at) : undefined,
+  };
 }

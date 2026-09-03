@@ -20,6 +20,8 @@ export {
   ConfirmationGate,
   ContinuityGuard,
   resolveFinalizedBlock,
+  type FinalityMode,
+  type RollbackOptions,
 } from "./ingest/confirmation.js";
 export { createApiServer } from "./api/server.js";
 export { OutboxDispatcher } from "./webhook/dispatcher.js";

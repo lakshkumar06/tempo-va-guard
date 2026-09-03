@@ -1,6 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import type { StoredDeposit } from "../db/repository.js";
-import { buildDepositPayload, type OutboxRow, type WebhookEventType } from "./types.js";
+import { buildDepositOrphanedPayload, buildDepositPayload, type OutboxRow, type WebhookEventType } from "./types.js";
 
 export class OutboxRepository {
   constructor(private readonly db: DatabaseSync) {}
@@ -20,7 +20,31 @@ export class OutboxRepository {
       ON CONFLICT(event_type, subject_id, endpoint) DO NOTHING
     `,
     ).run(
-      `delivery:${deposit.id}:${endpoint}`,
+      `delivery:deposit.confirmed:${deposit.id}:${endpoint}`,
+      deposit.id,
+      endpoint,
+      payload,
+      now,
+      now,
+    );
+  }
+
+  enqueueDepositOrphaned(
+    deposit: StoredDeposit,
+    endpoint: string,
+    now: string,
+  ): void {
+    const payload = JSON.stringify(buildDepositOrphanedPayload(deposit));
+    this.db.prepare(
+      `
+      INSERT INTO webhook_deliveries (
+        id, event_type, subject_id, endpoint, payload, status,
+        attempts, next_attempt_at, created_at
+      ) VALUES (?, 'deposit.orphaned', ?, ?, ?, 'pending', 0, ?, ?)
+      ON CONFLICT(event_type, subject_id, endpoint) DO NOTHING
+    `,
+    ).run(
+      `delivery:deposit.orphaned:${deposit.id}:${endpoint}`,
       deposit.id,
       endpoint,
       payload,
