@@ -15,6 +15,7 @@ import {
   type IndexedLog,
   type MasterTransferQuery,
   type TransactionReceipt,
+  type TransfersToAddressesQuery,
   TEMPO_MODERATO_RPC_URL,
   TIP20_TOKENS,
 } from "./types.js";
@@ -124,6 +125,34 @@ export class LiveRpcChainSource implements ChainSource {
     try {
       const logs = await this.client.getLogs({
         address: [...tokens] as Address[],
+        fromBlock: query.fromBlock,
+        toBlock: query.toBlock,
+        event: TRANSFER_EVENT,
+        args: {
+          to: toFilter,
+        },
+      });
+
+      return logs.map(toIndexedLog);
+    } catch (error) {
+      throw classifyRpcError(error);
+    }
+  }
+
+  async getTransfersToAddresses(
+    query: TransfersToAddressesQuery,
+  ): Promise<IndexedLog[]> {
+    if (query.toAddresses.length === 0) {
+      return [];
+    }
+
+    const toFilter =
+      query.toAddresses.length === 1
+        ? query.toAddresses[0]
+        : [...query.toAddresses];
+
+    try {
+      const logs = await this.client.getLogs({
         fromBlock: query.fromBlock,
         toBlock: query.toBlock,
         event: TRANSFER_EVENT,

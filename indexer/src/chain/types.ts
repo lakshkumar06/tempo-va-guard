@@ -50,6 +50,11 @@ export type MasterTransferQuery = LogRange & {
   tokenAddresses?: readonly Address[];
 };
 
+/** Transfer logs where `to` is one of the given addresses (any token). */
+export type TransfersToAddressesQuery = LogRange & {
+  toAddresses: readonly Address[];
+};
+
 export class ChainSourceError extends Error {
   constructor(
     message: string,
@@ -66,6 +71,9 @@ export interface ChainSource {
   getBlockNumber(tag?: BlockTag): Promise<bigint>;
   getBlock(number: bigint): Promise<BlockHeader | null>;
   getMasterTransferLogs(query: MasterTransferQuery): Promise<IndexedLog[]>;
+  getTransfersToAddresses(
+    query: TransfersToAddressesQuery,
+  ): Promise<IndexedLog[]>;
   getTransactionReceipt(hash: Hash): Promise<TransactionReceipt | null>;
 }
 

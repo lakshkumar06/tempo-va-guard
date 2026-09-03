@@ -8,10 +8,13 @@
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "lint": "eslint src tests"
+    "lint": "eslint src tests",
+    "watch:stuck": "tsx scripts/start-stuck-watcher.ts",
+    "detect:stuck": "tsx scripts/detect-stuck.ts"
   },
   "dependencies": {
     "express": "^4.21.2",
+    "tsx": "^4.19.3",
     "viem": "^2.30.0",
     "zod": "^3.24.2"
   },
