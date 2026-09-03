@@ -8,9 +8,14 @@ export type DispatcherOptions = {
   endpoint: string;
   secret: string;
   maxAttempts?: number;
+  /** Outbox claim lease; delivery timeout must stay below this. */
   leaseSeconds?: number;
 };
 
+/**
+ * At-least-once delivery with a stable Idempotency-Key (subject id).
+ * Consumers must dedupe on that key — this worker may retry after lease reclaim.
+ */
 export class OutboxDispatcher {
   private readonly maxAttempts: number;
   private readonly leaseSeconds: number;
