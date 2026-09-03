@@ -1,8 +1,9 @@
 {
+  "name": "tempo-va-guard-scripts",
+  "private": true,
   "dependencies": {
     "dotenv": "^17.4.2",
     "ethers": "^6.17.0",
-    "keccak": "^3.0.4",
-    "solc": "^0.8.36"
+    "keccak": "^3.0.4"
   }
 }

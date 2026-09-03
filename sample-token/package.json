@@ -1,0 +1,10 @@
+{
+  "name": "tempo-sample-token",
+  "private": true,
+  "scripts": {
+    "compile": "node compile.js"
+  },
+  "devDependencies": {
+    "solc": "^0.8.30"
+  }
+}
