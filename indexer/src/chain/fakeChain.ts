@@ -6,6 +6,7 @@ import {
   type IndexedLog,
   type MasterTransferQuery,
   type TransactionReceipt,
+  type TransfersToAddressesQuery,
   TIP20_TOKENS,
   TRANSFER_EVENT_TOPIC,
   padAddressTopic,
@@ -106,6 +107,40 @@ export class FakeChainSource implements ChainSource {
           }
           const toTopic = log.topics[2]?.toLowerCase();
           if (!toTopic || !masters.has(toTopic)) {
+            continue;
+          }
+          results.push(log);
+        }
+      }
+    }
+
+    return results;
+  }
+
+  async getTransfersToAddresses(
+    query: TransfersToAddressesQuery,
+  ): Promise<IndexedLog[]> {
+    const targets = new Set(
+      query.toAddresses.map((a) => padAddressTopic(a).toLowerCase()),
+    );
+    const results: IndexedLog[] = [];
+
+    for (let n = query.fromBlock; n <= query.toBlock; n++) {
+      const block = this.blocks.get(n);
+      if (!block) {
+        continue;
+      }
+
+      for (const receipt of block.receipts) {
+        for (const log of receipt.logs) {
+          if (
+            !log.topics[0] ||
+            log.topics[0].toLowerCase() !== TRANSFER_EVENT_TOPIC
+          ) {
+            continue;
+          }
+          const toTopic = log.topics[2]?.toLowerCase();
+          if (!toTopic || !targets.has(toTopic)) {
             continue;
           }
           results.push(log);
