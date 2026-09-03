@@ -68,7 +68,13 @@ export interface DepositRepository {
   getCursor(): CursorState | null;
   commitBlock(input: BlockCommitInput): void;
   listDeposits(): StoredDeposit[];
-  countDeposits(): number;
+  listDepositsPage(options: {
+    limit: number;
+    offset: number;
+    status?: DepositStatus;
+  }): StoredDeposit[];
+  getDepositById(id: string): StoredDeposit | null;
+  countDeposits(status?: DepositStatus): number;
   pruneBlockHashes(keepLatest: number): void;
   getBlockHash(number: bigint): BlockHashRecord | null;
   confirmDepositsUpTo(blockNumber: bigint): number;
@@ -232,31 +238,57 @@ export class SqliteDepositRepository implements DepositRepository {
       .prepare("SELECT * FROM deposits ORDER BY block_number, hop2_log_index")
       .all() as Array<Record<string, unknown>>;
 
-    return rows.map((row) => ({
-      id: String(row.id),
-      chainId: Number(row.chain_id),
-      blockNumber: BigInt(row.block_number as number),
-      blockHash: row.block_hash as Hash,
-      txHash: row.tx_hash as Hash,
-      hop1LogIndex: Number(row.hop1_log_index),
-      hop2LogIndex: Number(row.hop2_log_index),
-      token: row.token as Address,
-      masterId: String(row.master_id),
-      masterAddress: row.master_address as Address,
-      userTag: String(row.user_tag),
-      virtualAddress: row.virtual_address as Address,
-      fromAddress: row.from_address as Address,
-      amount: String(row.amount),
-      memo: row.memo ? String(row.memo) : undefined,
-      entrypoint: row.entrypoint as DepositEntrypoint,
-      isSelfForward: Boolean(row.is_self_forward),
-      status: row.status as DepositStatus,
-      detectedAt: String(row.detected_at),
-      confirmedAt: row.confirmed_at ? String(row.confirmed_at) : undefined,
-    }));
+    return rows.map(mapStoredDepositRow);
   }
 
-  countDeposits(): number {
+  listDepositsPage(options: {
+    limit: number;
+    offset: number;
+    status?: DepositStatus;
+  }): StoredDeposit[] {
+    const limit = Math.min(Math.max(options.limit, 1), 100);
+    const offset = Math.max(options.offset, 0);
+
+    if (options.status) {
+      const rows = this.db
+        .prepare(
+          `
+          SELECT * FROM deposits
+          WHERE status = ?
+          ORDER BY block_number, hop2_log_index
+          LIMIT ? OFFSET ?
+        `,
+        )
+        .all(options.status, limit, offset) as Array<Record<string, unknown>>;
+      return rows.map(mapStoredDepositRow);
+    }
+
+    const rows = this.db
+      .prepare(
+        `
+        SELECT * FROM deposits
+        ORDER BY block_number, hop2_log_index
+        LIMIT ? OFFSET ?
+      `,
+      )
+      .all(limit, offset) as Array<Record<string, unknown>>;
+    return rows.map(mapStoredDepositRow);
+  }
+
+  getDepositById(id: string): StoredDeposit | null {
+    const row = this.db
+      .prepare("SELECT * FROM deposits WHERE id = ?")
+      .get(id) as Record<string, unknown> | undefined;
+    return row ? mapStoredDepositRow(row) : null;
+  }
+
+  countDeposits(status?: DepositStatus): number {
+    if (status) {
+      const row = this.db
+        .prepare("SELECT COUNT(*) AS count FROM deposits WHERE status = ?")
+        .get(status) as { count: number };
+      return row.count;
+    }
     const row = this.db
       .prepare("SELECT COUNT(*) AS count FROM deposits")
       .get() as { count: number };
