@@ -1,12 +1,5 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { DatabaseSync } from "node:sqlite";
-
-const migrationsDir = join(
-  dirname(fileURLToPath(import.meta.url)),
-  "migrations",
-);
+import { MIGRATIONS } from "./migrations.js";
 
 export function openDatabase(path: string): DatabaseSync {
   const db = new DatabaseSync(path);
@@ -31,23 +24,17 @@ export function migrate(db: DatabaseSync): void {
       .map((row) => (row as { version: number }).version),
   );
 
-  const files = readdirSync(migrationsDir)
-    .filter((file) => file.endsWith(".sql"))
-    .sort();
-
-  for (const file of files) {
-    const version = Number.parseInt(file.split("_")[0] ?? "", 10);
-    if (Number.isNaN(version) || applied.has(version)) {
+  for (const migration of MIGRATIONS) {
+    if (applied.has(migration.version)) {
       continue;
     }
 
-    const sql = readFileSync(join(migrationsDir, file), "utf8");
     db.exec("BEGIN");
     try {
-      db.exec(sql);
+      db.exec(migration.sql);
       db.prepare(
         "INSERT INTO schema_migrations (version, applied_at) VALUES (?, ?)",
-      ).run(version, new Date().toISOString());
+      ).run(migration.version, new Date().toISOString());
       db.exec("COMMIT");
     } catch (error) {
       db.exec("ROLLBACK");
