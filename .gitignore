@@ -11,3 +11,4 @@ target/
 indexer/dist/
 indexer/data/
 indexer/*.db
+.git-rewrite/
